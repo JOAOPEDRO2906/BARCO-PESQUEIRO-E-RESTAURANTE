@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Mesas - Pesqueiro</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <style>
+        :root {
+            --primary: #000000;     /* Laranja principal */
+            --secondary: #000000;   /* Azul (agora para reservas) */
+            --success: #27ae60;     /* Verde (livre) */
+            --danger: #e74c3c;      /* Vermelho (ocupada) */
+            --warning: #2b35c9;     /* 🔥 AZUL (reservada) */
+            --light: #82d0e4;
+            --dark: #fd5e02;        /* Laranja escuro */
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #f1ad85, #f75301);
+            color: white;
+            padding: 20px 0;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+        }
+        
+        h1 {
+            font-size: 2.2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status-bar {
+            display: flex;
+            gap: 15px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.9rem;
+        }
+        
+        .status-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+        
+        .livre-color { background-color: var(--success); }
+        .ocupada-color { background-color: var(--danger); }
+        .reservada-color { background-color: var(--warning); }
+        .inativa-color { background-color: #95a5a6; }
+        
+        .tabs {
+            display: flex;
+            background-color: white;
+            border-radius: 10px 10px 0 0;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .tab {
+            padding: 15px 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .tab.active {
+            background-color: white;
+            border-bottom: 3px solid var(--secondary);
+            color: var(--secondary);
+        }
+        
+        .tab-content {
+            display: none;
+            background-color: white;
+            padding: 20px;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .mesas-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .mesa {
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .mesa::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+        }
+        
+        .mesa.livre::before { background-color: var(--success); }
+        .mesa.ocupada::before { background-color: var(--danger); }
+        .mesa.reservada::before { background-color: var(--warning); }
+        .mesa.inativa::before { background-color: #95a5a6; }
+        
+        .mesa.livre { background-color: rgba(39, 174, 96, 0.1); }
+        .mesa.ocupada { background-color: rgba(231, 76, 60, 0.1); }
+        .mesa.reservada { background-color: rgba(243, 156, 18, 0.1); }
+        .mesa.inativa { background-color: rgba(149, 165, 166, 0.1); }
+        
+        .mesa:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .mesa-numero {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .mesa-lugares {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .mesa-status {
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            padding: 3px 8px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+        
+        .livre .mesa-status { background-color: var(--success); color: white; }
+        .ocupada .mesa-status { background-color: var(--danger); color: white; }
+        .reservada .mesa-status { background-color: var(--warning); color: white; }
+        .inativa .mesa-status { background-color: #95a5a6; color: white; }
+        
+        .observacoes {
+            margin-top: 20px;
+        }
+        
+        .observacoes h3 {
+            margin-bottom: 10px;
+            color: var(--primary);
+        }
+        
+        .observacoes textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            resize: vertical;
+        }
+        
+        .reservas-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .reservas-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .btn-primary {
+            background-color: var(--secondary);
+            color: white;
+        }
+        
+        .btn-success {
+            background-color: var(--success);
+            color: white;
+        }
+        
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+        
+        .btn-warning {
+            background-color: var(--warning);
+            color: white;
+        }
+        
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: var(--primary);
+        }
+        
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .acoes {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .acoes button {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .close {
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #777;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            color: #777;
+            font-size: 0.9rem;
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.9rem;
+        }
+        
+        .connected {
+            color: var(--success);
+        }
+        
+        .disconnected {
+            color: var(--danger);
+        }
+
+        .feedback-mensagem {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+            z-index: 10000;
+            transition: all 0.3s ease;
+        }
+        
+        .feedback-success {
+            background-color: #27ae60;
+        }
+        
+        .feedback-error {
+            background-color: #e74c3c;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .status-badge.pendente {
+            background-color: #f39c12;
+            color: white;
+        }
+        .status-badge.parcial {
+            background-color: #3498db;
+            color: white;
+        }
+        .status-badge.completa {
+            background-color: #27ae60;
+            color: white;
+        }
+
+        .importacao-area {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .importacao-area h4 {
+            margin-bottom: 10px;
+            color: var(--primary);
+        }
+        
+        .importacao-area p {
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .sync-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.8rem;
+            color: #27ae60;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        @media (max-width: 768px) {
+            .mesas-grid {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            }
+            
+            .header-content {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .tabs {
+                flex-wrap: wrap;
+            }
+            
+            .tab {
+                flex: 1;
+                min-width: 120px;
+                text-align: center;
+            }
+            
+            .reservas-header {
+                flex-direction: column;
+                gap: 10px;
+                align-items: flex-start;
+            }
+            
+            .reservas-header div {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <h1><i class="fas fa-fish"></i> Barco Pesqueiro e Restaurante</h1>
+                <div class="connection-status" id="connection-status">
+                    <i class="fas fa-wifi" id="wifi-icon"></i>
+                    <span id="connection-text">Conectando...</span>
+                    <span class="sync-indicator" id="sync-indicator" style="display: none;">
+                        <i class="fas fa-sync-alt"></i> Sincronizando...
+                    </span>
+                </div>
+            </div>
+            
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="status-color livre-color"></div>
+                    <span>Livre</span>
+                </div>
+                <div class="status-item">
+                    <div class="status-color ocupada-color"></div>
+                    <span>Ocupada</span>
+                </div>
+                <div class="status-item">
+                    <div class="status-color reservada-color"></div>
+                    <span>Reservada</span>
+                </div>
+                <div class="status-item">
+                    <div class="status-color inativa-color"></div>
+                    <span>Inativa</span>
+                </div>
+            </div>
+        </header>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="salao">Salão (1-59)</div>
+            <div class="tab" data-tab="deck">Deck (60-99)</div>
+            <div class="tab" data-tab="kids">Kids (100-135)</div>
+            <div class="tab" data-tab="reservas">Reservas</div>
+        </div>
+        
+        <div class="tab-content active" id="salao">
+            <h2>Salão - Mesas 1 a 59</h2>
+            <div class="mesas-grid" id="mesas-salao">
+                <!-- Mesas do salão serão geradas por JavaScript -->
+            </div>
+            
+            <div class="observacoes">
+                <h3>Observações do Salão</h3>
+                <textarea id="observacoes-salao" placeholder="Digite observações sobre o salão..."></textarea>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="deck">
+            <h2>Deck - Mesas 60 a 99</h2>
+            <div class="mesas-grid" id="mesas-deck">
+                <!-- Mesas do deck serão geradas por JavaScript -->
+            </div>
+            
+            <div class="observacoes">
+                <h3>Observações do Deck</h3>
+                <textarea id="observacoes-deck" placeholder="Digite observações sobre o deck..."></textarea>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="kids">
+            <h2>Área Kids - Mesas 100 a 135</h2>
+            <div class="mesas-grid" id="mesas-kids">
+                <!-- Mesas da área kids serão geradas por JavaScript -->
+            </div>
+            
+            <div class="observacoes">
+                <h3>Observações da Área Kids</h3>
+                <textarea id="observacoes-kids" placeholder="Digite observações sobre a área kids..."></textarea>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="reservas">
+            <div class="reservas-container">
+                <div class="reservas-header">
+                    <h2>Gerenciar Reservas</h2>
+                    <div>
+                        <button class="btn btn-warning" id="inicializar-mesas" style="background-color: #e67e22;">
+                            <i class="fas fa-bolt"></i> Inicializar Mesas
+                        </button>
+                        <button class="btn btn-primary" id="importar-reservas">
+                            <i class="fas fa-file-import"></i> Importar Reservas
+                        </button>
+                        <button class="btn btn-success" id="adicionar-reserva">
+                            <i class="fas fa-plus"></i> Adicionar Reserva
+                        </button>
+                        <button class="btn btn-danger" id="limpar-reservas">
+                            <i class="fas fa-trash"></i> Limpar Tudo
+                        </button>
+                        <button class="btn btn-warning" id="exportar-dados">
+                            <i class="fas fa-file-export"></i> Exportar Dados
+                        </button>
+                    </div>
+                </div>
+
+                <div class="importacao-area">
+                    <h4><i class="fas fa-file-excel"></i> Importar do Excel</h4>
+                    <p>
+                        <strong>Formato:</strong> Nome [TAB] Quantidade de Pessoas [TAB] Número da Mesa<br>
+                        <strong>Exemplo:</strong> João Silva    4    12
+                    </p>
+                    <textarea 
+                        id="dados-excel" 
+                        placeholder="Cole aqui os dados do Excel (copie as colunas diretamente do Excel)...
+Exemplo:
+João Silva    4    12
+Maria Santos    6    15
+Carlos Oliveira    2    8" 
+                        style="width: 100%; height: 120px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical; font-family: monospace;"
+                    ></textarea>
+                    <button class="btn btn-success" id="processar-excel" style="margin-top: 10px;">
+                        <i class="fas fa-cogs"></i> Processar Dados
+                    </button>
+                </div>
+                
+                <table id="tabela-reservas">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Pessoas</th>
+                            <th>Espaço</th>
+                            <th>Mesa</th>
+                            <th>Chegaram</th>
+                            <th>Faltam</th>
+                            <th>Status</th>
+                            <th>Observações</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Linhas de reservas serão adicionadas por JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Sistema de Controle de Mesas - Pesqueiro &copy; 2023</p>
+        </div>
+    </div>
+    
+    <!-- Modal para editar mesa -->
+    <div class="modal" id="modal-mesa">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Editar Mesa <span id="numero-mesa-modal"></span></h3>
+                <span class="close">&times;</span>
+            </div>
+            <form id="form-mesa">
+                <div class="form-group">
+                    <label for="status-mesa">Status</label>
+                    <select class="form-control" id="status-mesa">
+                        <option value="livre">Livre</option>
+                        <option value="ocupada">Ocupada</option>
+                        <option value="reservada">Reservada</option>
+                        <option value="inativa">Inativa</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="lugares-mesa">Quantidade de Lugares</label>
+                    <input type="number" class="form-control" id="lugares-mesa" min="0" value="4">
+                </div>
+                
+                <div class="form-group">
+                    <label for="observacoes-mesa">Observações</label>
+                    <textarea class="form-control" id="observacoes-mesa" rows="3"></textarea>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal para adicionar reserva -->
+    <div class="modal" id="modal-reserva">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Adicionar Reserva</h3>
+                <span class="close">&times;</span>
+            </div>
+            <form id="form-reserva">
+                <div class="form-group">
+                    <label for="nome-reserva">Nome</label>
+                    <input type="text" class="form-control" id="nome-reserva" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="pessoas-reserva">Número de Pessoas</label>
+                    <input type="number" class="form-control" id="pessoas-reserva" min="1" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="espaco-reserva">Espaço</label>
+                    <select class="form-control" id="espaco-reserva">
+                        <option value="salao">Salão</option>
+                        <option value="deck">Deck</option>
+                        <option value="kids">Área Kids</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="mesa-reserva">Número da Mesa</label>
+                    <input type="number" class="form-control" id="mesa-reserva" min="1" max="135" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="observacoes-reserva">Observações</label>
+                    <textarea class="form-control" id="observacoes-reserva" rows="3"></textarea>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Adicionar Reserva</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ==================== CONFIGURAÇÃO FIREBASE ====================
+        const firebaseConfig = {
+            apiKey: "AIzaSyBKd4K0MtyHC6eH3coQ3PLDoqyJhv4qcfw",
+            authDomain: "controle-pesqueiro.firebaseapp.com",
+            databaseURL: "https://controle-pesqueiro-default-rtdb.firebaseio.com",
+            projectId: "controle-pesqueiro",
+            storageBucket: "controle-pesqueiro.firebasestorage.app",
+            messagingSenderId: "1021222932204",
+            appId: "1:1021222932204:web:dd4735801878277b729fc9"
+        };
+        
+        // Inicializar Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        
+        // ==================== VARIÁVEIS GLOBAIS ====================
+        let mesas = { salao: [], deck: [], kids: [] };
+        let reservas = [];
+        let observacoes = { salao: '', deck: '', kids: '' };
+        let isOnline = false;
+        let debounceTimer;
+        let abaAtual = 'salao';
+
+        // ==================== DEBOUNCE FUNCTION ====================
+        function debounce(callback, delay) {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(callback, delay);
+        }
+
+        // ==================== INICIALIZAÇÃO ====================
+        document.addEventListener('DOMContentLoaded', function() {
+            configurarFirebase();
+            configurarEventListeners();
+            console.log('🚀 Sistema iniciado - Pronto para sincronização em tempo real');
+        });
+        
+        // ==================== FIREBASE - COMUNICAÇÃO TEMPO REAL CORRIGIDA ====================
+        function configurarFirebase() {
+            inicializarMesasNoFirebase();
+            
+            // Escuta mudanças completas no nó de mesas
+            database.ref('mesas').on('value', (snapshot) => {
+                const dados = snapshot.val();
+                if (dados) {
+                    mesas = dados;
+                    renderizarMesas();
+                    atualizarStatusConexao(true);
+                    mostrarSyncIndicator();
+                    console.log('✅ Todas as mesas atualizadas do Firebase');
+                }
+            });
+            
+            // 🔥 ESCUTA MUDANÇAS NAS RESERVAS DE FORMA MAIS EFICIENTE
+            database.ref('reservas').on('value', (snapshot) => {
+                const dados = snapshot.val();
+                if (dados) {
+                    reservas = dados;
+                    renderizarReservas();
+                    mostrarSyncIndicator();
+                    console.log('✅ Reservas atualizadas do Firebase - Total:', reservas ? reservas.length : 0);
+                } else {
+                    reservas = [];
+                    renderizarReservas();
+                    console.log('✅ Nenhuma reserva no Firebase');
+                }
+            });
+            
+            // 🔥 ESCUTA QUANDO UMA RESERVA É REMOVIDA
+            database.ref('reservas').on('child_removed', (snapshot) => {
+                const reservaRemovida = snapshot.val();
+                console.log('🔥 Reserva removida do Firebase:', reservaRemovida);
+                // A renderização já vai acontecer pelo listener acima
+            });
+            
+            // Escuta mudanças em cada espaço individualmente
+            database.ref('mesas').on('child_changed', (snapshot) => {
+                const espaco = snapshot.key;
+                const novasMesas = snapshot.val();
+                
+                if (mesas[espaco]) {
+                    mesas[espaco] = novasMesas;
+                    renderizarMesasEspaco(espaco);
+                    mostrarSyncIndicator();
+                    console.log(`✅ ${espaco} atualizado em tempo real - ${novasMesas.length} mesas`);
+                }
+            });
+            
+            // Escuta mudanças em mesas individuais
+            ['salao', 'deck', 'kids'].forEach(espaco => {
+                database.ref(`mesas/${espaco}`).on('child_changed', (snapshot) => {
+                    const mesaAtualizada = snapshot.val();
+                    const numeroMesa = mesaAtualizada.numero;
+                    
+                    // Atualiza no array local
+                    const mesaIndex = mesas[espaco].findIndex(m => m.numero === numeroMesa);
+                    if (mesaIndex !== -1) {
+                        mesas[espaco][mesaIndex] = mesaAtualizada;
+                        atualizarMesaVisual(espaco, numeroMesa);
+                        console.log(`🔥 Mesa ${numeroMesa} (${espaco}) atualizada: ${mesaAtualizada.status}`);
+                    }
+                });
+            });
+            
+            database.ref('observacoes').on('value', (snapshot) => {
+                const dados = snapshot.val();
+                if (dados) {
+                    observacoes = dados;
+                    atualizarObservacoesUI();
+                    console.log('✅ Observações atualizadas do Firebase');
+                }
+            });
+            
+            database.ref('.info/connected').on('value', (snapshot) => {
+                isOnline = snapshot.val() === true;
+                atualizarStatusConexao(isOnline);
+                if (isOnline) {
+                    console.log('🌐 Conectado ao Firebase - Sincronização ativa');
+                } else {
+                    console.log('📴 Offline - Modo local');
+                }
+            });
+        }
+
+        // 🔥 INDICADOR DE SINCRONIZAÇÃO
+        function mostrarSyncIndicator() {
+            const indicator = document.getElementById('sync-indicator');
+            indicator.style.display = 'inline-flex';
+            
+            setTimeout(() => {
+                indicator.style.display = 'none';
+            }, 2000);
+        }
+
+        // ==================== INICIALIZAR MESAS NO FIREBASE ====================
+        function inicializarMesasNoFirebase() {
+            database.ref('mesas').once('value').then((snapshot) => {
+                if (!snapshot.exists()) {
+                    console.log('Criando mesas iniciais no Firebase...');
+                    
+                    const mesasIniciais = { salao: [], deck: [], kids: [] };
+                    
+                    // Salão - mesas 1 a 59
+                    for (let i = 1; i <= 59; i++) {
+                        let lugares = 4;
+                        if (i % 4 === 0) lugares = 6;
+                        if (i % 10 === 0) lugares = 8;
+                        
+                        mesasIniciais.salao.push({
+                            numero: i,
+                            lugares: lugares,
+                            status: 'livre',
+                            observacoes: ''
+                        });
+                    }
+                    
+                    // Deck - mesas 60 a 99
+                    for (let i = 60; i <= 99; i++) {
+                        mesasIniciais.deck.push({
+                            numero: i,
+                            lugares: 0,
+                            status: 'inativa',
+                            observacoes: ''
+                        });
+                    }
+                    
+                    // Kids - mesas 100 a 135
+                    for (let i = 100; i <= 135; i++) {
+                        mesasIniciais.kids.push({
+                            numero: i,
+                            lugares: 0,
+                            status: 'inativa',
+                            observacoes: ''
+                        });
+                    }
+                    
+                    database.ref('mesas').set(mesasIniciais)
+                        .then(() => {
+                            console.log('✅ Mesas criadas!');
+                            mesas = mesasIniciais;
+                            renderizarMesas();
+                        })
+                        .catch(error => console.error('Erro:', error));
+                } else {
+                    console.log('✅ Mesas já existem no Firebase');
+                }
+            });
+        }
+
+        // ==================== FUNÇÕES DE SINCRONIZAÇÃO ====================
+        function salvarMesasNoFirebase() {
+            if (isOnline) {
+                debounce(() => {
+                    database.ref('mesas').set(mesas)
+                        .then(() => {
+                            console.log('📤 Mesas enviadas para o Firebase');
+                        })
+                        .catch(error => console.error('Erro:', error));
+                }, 500);
+            }
+        }
+        
+        // 🔥 MODIFICADA - Agora retorna Promise
+        function salvarReservasNoFirebase() {
+            return new Promise((resolve, reject) => {
+                if (isOnline) {
+                    database.ref('reservas').set(reservas)
+                        .then(() => {
+                            console.log('📤 Reservas enviadas para o Firebase');
+                            resolve();
+                        })
+                        .catch(error => {
+                            console.error('Erro:', error);
+                            reject(error);
+                        });
+                } else {
+                    resolve(); // Se offline, resolve imediatamente
+                }
+            });
+        }
+        
+        function salvarObservacoesNoFirebase() {
+            if (isOnline) {
+                database.ref('observacoes').set(observacoes)
+                    .then(() => {
+                        console.log('📤 Observações enviadas para o Firebase');
+                    })
+                    .catch(error => console.error('Erro:', error));
+            }
+        }
+        
+        function atualizarStatusConexao(conectado) {
+            const icon = document.getElementById('wifi-icon');
+            const text = document.getElementById('connection-text');
+            const statusDiv = document.getElementById('connection-status');
+            
+            if (conectado) {
+                icon.className = 'fas fa-wifi connected';
+                text.textContent = 'Conectado ✓';
+                statusDiv.style.color = 'var(--success)';
+            } else {
+                icon.className = 'fas fa-wifi-slash disconnected';
+                text.textContent = 'Offline - Dados Locais';
+                statusDiv.style.color = 'var(--danger)';
+            }
+        }
+
+        // ==================== RENDERIZAÇÃO ====================
+        function renderizarMesas() {
+            renderizarMesasEspaco('salao');
+            renderizarMesasEspaco('deck');
+            renderizarMesasEspaco('kids');
+            renderizarReservas();
+        }
+        
+        function renderizarMesasEspaco(espaco) {
+            const container = document.getElementById(`mesas-${espaco}`);
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            if (!mesas[espaco] || mesas[espaco].length === 0) {
+                container.innerHTML = '<p>Carregando mesas...</p>';
+                return;
+            }
+            
+            const fragment = document.createDocumentFragment();
+            
+            mesas[espaco].forEach(mesa => {
+                const mesaElement = document.createElement('div');
+                mesaElement.className = `mesa ${mesa.status}`;
+                mesaElement.setAttribute('data-numero', mesa.numero);
+                mesaElement.setAttribute('data-espaco', espaco);
+                mesaElement.innerHTML = `
+                    <div class="mesa-numero">${mesa.numero}</div>
+                    <div class="mesa-lugares">${mesa.lugares} lugares</div>
+                    <div class="mesa-status">${mesa.status}</div>
+                `;
+                
+                mesaElement.addEventListener('click', () => abrirModalMesa(espaco, mesa.numero));
+                fragment.appendChild(mesaElement);
+            });
+            
+            container.appendChild(fragment);
+        }
+
+        // 🔥 FUNÇÃO CORRIGIDA - Atualiza visual individual da mesa
+        function atualizarMesaVisual(espaco, numeroMesa) {
+            const container = document.getElementById(`mesas-${espaco}`);
+            if (!container) return;
+            
+            const mesaElement = container.querySelector(`[data-numero="${numeroMesa}"]`);
+            const mesaData = mesas[espaco].find(m => m.numero === numeroMesa);
+            
+            if (mesaElement && mesaData) {
+                // Atualiza completamente a classe e conteúdo
+                mesaElement.className = `mesa ${mesaData.status}`;
+                
+                const numeroElement = mesaElement.querySelector('.mesa-numero');
+                const lugaresElement = mesaElement.querySelector('.mesa-lugares');
+                const statusElement = mesaElement.querySelector('.mesa-status');
+                
+                if (numeroElement) numeroElement.textContent = mesaData.numero;
+                if (lugaresElement) lugaresElement.textContent = `${mesaData.lugares} lugares`;
+                if (statusElement) statusElement.textContent = mesaData.status;
+                
+                console.log(`✅ Visual atualizado: Mesa ${numeroMesa} (${espaco}) -> ${mesaData.status}`);
+            }
+        }
+
+        // ==================== FUNÇÕES DAS RESERVAS ====================
+        function renderizarReservas() {
+            const tbody = document.querySelector('#tabela-reservas tbody');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+            
+            if (!reservas || reservas.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">Nenhuma reserva cadastrada</td></tr>';
+                return;
+            }
+            
+            const fragment = document.createDocumentFragment();
+            
+            reservas.forEach((reserva, index) => {
+                const tr = document.createElement('tr');
+                const faltam = Math.max(0, reserva.pessoas - reserva.chegaram);
+                
+                let statusReserva = 'Pendente';
+                if (reserva.chegaram > 0) {
+                    statusReserva = reserva.chegaram >= reserva.pessoas ? 'Completa' : 'Parcial';
+                }
+                
+                tr.innerHTML = `
+                    <td>${reserva.nome}</td>
+                    <td>${reserva.pessoas}</td>
+                    <td>${traduzirEspaco(reserva.espaco)}</td>
+                    <td>${reserva.mesa || '-'}</td>
+                    <td>
+                        <input type="number" min="0" max="${reserva.pessoas}" value="${reserva.chegaram}" 
+                               data-index="${index}" class="chegaram-input" style="width: 60px;">
+                    </td>
+                    <td>${faltam}</td>
+                    <td>
+                        <span class="status-badge ${statusReserva.toLowerCase()}">
+                            ${statusReserva}
+                        </span>
+                    </td>
+                    <td>${reserva.observacoes || '-'}</td>
+                    <td class="acoes">
+                        <button class="btn btn-danger btn-sm excluir-reserva" data-index="${index}" title="Excluir reserva">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                
+                fragment.appendChild(tr);
+            });
+            
+            tbody.appendChild(fragment);
+            atualizarTodasMesasPorReservas();
+        }
+        
+        function atualizarObservacoesUI() {
+            document.getElementById('observacoes-salao').value = observacoes.salao || '';
+            document.getElementById('observacoes-deck').value = observacoes.deck || '';
+            document.getElementById('observacoes-kids').value = observacoes.kids || '';
+        }
+
+        // ==================== IMPORTAR DO EXCEL ====================
+        function importarReservas() {
+            const dadosExcel = document.getElementById('dados-excel').value.trim();
+            
+            if (!dadosExcel) {
+                alert('Por favor, cole os dados do Excel no campo de importação!');
+                return;
+            }
+            
+            const linhas = dadosExcel.split('\n');
+            let reservasImportadas = 0;
+            let erros = 0;
+            
+            linhas.forEach((linha, index) => {
+                const linhaLimpa = linha.trim();
+                if (!linhaLimpa) return;
+                
+                let partes;
+                
+                if (linhaLimpa.includes('\t')) {
+                    partes = linhaLimpa.split('\t').map(parte => parte.trim());
+                } 
+                else if (linhaLimpa.includes(',')) {
+                    partes = linhaLimpa.split(',').map(parte => parte.trim());
+                }
+                else {
+                    console.warn(`Linha ${index + 1} sem separador válido: ${linha}`);
+                    erros++;
+                    return;
+                }
+                
+                if (partes.length >= 3) {
+                    const nome = partes[0];
+                    const pessoas = parseInt(partes[1]);
+                    const mesa = parseInt(partes[2]);
+                    
+                    if (nome && !isNaN(pessoas) && pessoas > 0 && !isNaN(mesa) && mesa >= 1 && mesa <= 135) {
+                        let espaco;
+                        if (mesa >= 1 && mesa <= 59) espaco = 'salao';
+                        else if (mesa >= 60 && mesa <= 99) espaco = 'deck';
+                        else if (mesa >= 100 && mesa <= 135) espaco = 'kids';
+                        else {
+                            console.warn(`Mesa ${mesa} fora do intervalo`);
+                            erros++;
+                            return;
+                        }
+                        
+                        const mesaExiste = mesas[espaco].some(m => m.numero === mesa);
+                        if (!mesaExiste) {
+                            console.warn(`Mesa ${mesa} não existe no ${espaco}`);
+                            erros++;
+                            return;
+                        }
+                        
+                        const reservaExistente = reservas.find(r => r.mesa === mesa && r.espaco === espaco);
+                        if (reservaExistente) {
+                            console.warn(`Mesa ${mesa} já reservada para ${reservaExistente.nome}`);
+                            erros++;
+                            return;
+                        }
+                        
+                        reservas.push({
+                            nome,
+                            pessoas,
+                            espaco,
+                            mesa,
+                            chegaram: 0,
+                            observacoes: `Importado - ${new Date().toLocaleDateString()}`
+                        });
+                        
+                        reservasImportadas++;
+                        atualizarStatusMesaPorReserva(espaco, mesa, 'reservada');
+                        
+                    } else {
+                        console.warn(`Linha ${index + 1} inválida: ${linha}`);
+                        erros++;
+                    }
+                } else {
+                    console.warn(`Linha ${index + 1} incompleta: ${linha} (${partes.length} partes)`);
+                    erros++;
+                }
+            });
+            
+            if (reservasImportadas > 0) {
+                salvarReservasNoFirebase();
+                renderizarReservas();
+                document.getElementById('dados-excel').value = '';
+                mostrarFeedback(`✅ ${reservasImportadas} reservas importadas! ${erros > 0 ? `(${erros} erros)` : ''}`, 'success');
+            } else {
+                mostrarFeedback('❌ Nenhuma reserva válida encontrada para importar', 'error');
+            }
+        }
+
+        // ==================== ATUALIZAR STATUS DAS MESAS ====================
+        function atualizarStatusMesaPorReserva(espaco, numeroMesa, status) {
+            const mesaIndex = mesas[espaco].findIndex(m => m.numero === numeroMesa);
+            
+            if (mesaIndex !== -1) {
+                mesas[espaco][mesaIndex].status = status;
+                
+                // Atualiza visual imediatamente
+                atualizarMesaVisual(espaco, numeroMesa);
+                
+                // Salva no Firebase
+                salvarMesaNoFirebase(espaco, mesaIndex, mesas[espaco][mesaIndex]);
+            }
+        }
+
+        // 🔥 FUNÇÃO CORRIGIDA - Respeita alterações manuais
+        function atualizarTodasMesasPorReservas() {
+            console.log('🔄 Atualizando mesas baseado nas reservas...');
+            
+            // Cria um mapa rápido das reservas ativas
+            const reservasAtivas = {};
+            reservas.forEach(reserva => {
+                if (reserva.mesa) {
+                    const key = `${reserva.espaco}-${reserva.mesa}`;
+                    reservasAtivas[key] = {
+                        status: reserva.chegaram > 0 ? 'ocupada' : 'reservada',
+                        reserva: reserva
+                    };
+                }
+            });
+            
+            // Percorre TODAS as mesas
+            Object.keys(mesas).forEach(espaco => {
+                mesas[espaco].forEach(mesa => {
+                    const key = `${espaco}-${mesa.numero}`;
+                    const reserva = reservasAtivas[key];
+                    
+                    if (reserva) {
+                        // 🔥 MESA TEM RESERVA - Aplica status da reserva
+                        if (mesa.status !== reserva.status) {
+                            console.log(`🔄 Alterando mesa ${mesa.numero} de ${mesa.status} para ${reserva.status}`);
+                            mesa.status = reserva.status;
+                            atualizarMesaVisual(espaco, mesa.numero);
+                        }
+                    } else {
+                        // 🔥 MESA NÃO TEM RESERVA - MANTÉM status atual (não faz nada)
+                        // A mesa pode estar como livre, ocupada, inativa - mantém o que foi definido manualmente
+                    }
+                });
+            });
+            
+            console.log('✅ Atualização de mesas por reservas concluída');
+        }
+
+        // ==================== EVENT LISTENERS ====================
+        function configurarEventListeners() {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabId = tab.getAttribute('data-tab');
+                    
+                    if (tabId !== 'reservas' && tabId !== abaAtual) {
+                        abaAtual = tabId;
+                        renderizarMesasEspaco(tabId);
+                    }
+                    
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+            
+            document.getElementById('observacoes-salao').addEventListener('input', function() {
+                observacoes.salao = this.value;
+                salvarObservacoesNoFirebase();
+            });
+            
+            document.getElementById('observacoes-deck').addEventListener('input', function() {
+                observacoes.deck = this.value;
+                salvarObservacoesNoFirebase();
+            });
+            
+            document.getElementById('observacoes-kids').addEventListener('input', function() {
+                observacoes.kids = this.value;
+                salvarObservacoesNoFirebase();
+            });
+            
+            document.getElementById('processar-excel').addEventListener('click', importarReservas);
+            document.getElementById('adicionar-reserva').addEventListener('click', () => {
+                document.getElementById('modal-reserva').style.display = 'flex';
+            });
+            
+            document.getElementById('limpar-reservas').addEventListener('click', limparReservas);
+            document.getElementById('exportar-dados').addEventListener('click', exportarDados);
+            document.getElementById('inicializar-mesas').addEventListener('click', inicializarMesasManual);
+            
+            document.getElementById('form-mesa').addEventListener('submit', salvarMesa);
+            document.getElementById('form-reserva').addEventListener('submit', adicionarReserva);
+            
+            document.querySelectorAll('.close').forEach(close => {
+                close.addEventListener('click', function() {
+                    this.closest('.modal').style.display = 'none';
+                });
+            });
+            
+            document.addEventListener('input', function(e) {
+                if (e.target.classList.contains('chegaram-input')) {
+                    const index = e.target.getAttribute('data-index');
+                    const valor = parseInt(e.target.value) || 0;
+                    
+                    reservas[index].chegaram = valor;
+                    
+                    const reserva = reservas[index];
+                    if (reserva.mesa) {
+                        if (valor > 0) {
+                            atualizarStatusMesaPorReserva(reserva.espaco, reserva.mesa, 'ocupada');
+                        } else {
+                            atualizarStatusMesaPorReserva(reserva.espaco, reserva.mesa, 'reservada');
+                        }
+                    }
+                    
+                    salvarReservasNoFirebase();
+                    renderizarReservas();
+                }
+            });
+            
+            // 🔥🔥🔥 CORREÇÃO DEFINITIVA - Excluir reserva com sincronização COMPLETA
+            document.addEventListener('click', function(e) {
+                if (e.target.closest('.excluir-reserva')) {
+                    const index = e.target.closest('.excluir-reserva').getAttribute('data-index');
+                    const reserva = reservas[index];
+                    
+                    if (reserva && reserva.mesa) {
+                        // 🔥 ATUALIZA O STATUS DA MESA PARA LIVRE IMEDIATAMENTE
+                        atualizarStatusMesaPorReserva(reserva.espaco, reserva.mesa, 'livre');
+                    }
+                    
+                    // 🔥 REMOVE A RESERVA DO ARRAY
+                    reservas.splice(index, 1);
+                    
+                    // 🔥🔥🔥 SALVA NO FIREBASE E SÓ DEPOIS ATUALIZA AS MESAS
+                    salvarReservasNoFirebase().then(() => {
+                        // 🔥🔥🔥 AGORA SIM ATUALIZA TODAS AS MESAS
+                        atualizarTodasMesasPorReservas();
+                        
+                        // 🔥 RENDERIZA NOVAMENTE AS RESERVAS
+                        renderizarReservas();
+                        
+                        console.log(`🗑️ Reserva excluída: ${reserva.nome} - Mesa ${reserva.mesa}`);
+                        mostrarFeedback(`✅ Reserva de ${reserva.nome} excluída`, 'success');
+                    });
+                }
+            });
+        }
+
+        // ==================== FUNÇÕES DOS MODAIS ====================
+        function abrirModalMesa(espaco, numeroMesa) {
+            const mesa = mesas[espaco].find(m => m.numero === numeroMesa);
+            
+            if (!mesa) {
+                alert('Mesa não encontrada!');
+                return;
+            }
+            
+            document.getElementById('numero-mesa-modal').textContent = mesa.numero;
+            document.getElementById('status-mesa').value = mesa.status;
+            document.getElementById('lugares-mesa').value = mesa.lugares;
+            document.getElementById('observacoes-mesa').value = mesa.observacoes;
+            
+            document.getElementById('form-mesa').dataset.espaco = espaco;
+            document.getElementById('form-mesa').dataset.numero = numeroMesa;
+            
+            document.getElementById('modal-mesa').style.display = 'flex';
+        }
+        
+        function salvarMesa(e) {
+            e.preventDefault();
+            
+            const espaco = e.target.dataset.espaco;
+            const numero = parseInt(e.target.dataset.numero);
+            const status = document.getElementById('status-mesa').value;
+            const lugares = parseInt(document.getElementById('lugares-mesa').value);
+            const observacoesMesa = document.getElementById('observacoes-mesa').value;
+            
+            const mesaIndex = mesas[espaco].findIndex(m => m.numero === numero);
+            
+            if (mesaIndex === -1) return;
+            
+            const dadosAtualizados = {
+                status: status,
+                lugares: lugares,
+                observacoes: observacoesMesa
+            };
+            
+            if ((espaco === 'deck' || espaco === 'kids') && lugares === 0) {
+                dadosAtualizados.status = 'inativa';
+            }
+            
+            Object.assign(mesas[espaco][mesaIndex], dadosAtualizados);
+            atualizarMesaVisual(espaco, numero);
+            document.getElementById('modal-mesa').style.display = 'none';
+            salvarMesaNoFirebase(espaco, mesaIndex, mesas[espaco][mesaIndex]);
+        }
+
+        function salvarMesaNoFirebase(espaco, mesaIndex, dadosMesa) {
+            if (!isOnline) {
+                mostrarFeedback('Dados salvos localmente (offline)', 'success');
+                return;
+            }
+            
+            const updates = {};
+            updates[`mesas/${espaco}/${mesaIndex}`] = dadosMesa;
+            
+            database.ref().update(updates)
+                .then(() => {
+                    mostrarFeedback('Alterações salvas com sucesso!', 'success');
+                    console.log(`📤 Mesa ${dadosMesa.numero} (${espaco}) enviada para Firebase`);
+                })
+                .catch(error => {
+                    console.error('❌ Erro ao salvar:', error);
+                    mostrarFeedback('Erro ao salvar. Verifique a conexão.', 'error');
+                });
+        }
+
+        function mostrarFeedback(mensagem, tipo) {
+            const feedbackAnterior = document.getElementById('feedback-mensagem');
+            if (feedbackAnterior) {
+                feedbackAnterior.remove();
+            }
+            
+            const feedback = document.createElement('div');
+            feedback.id = 'feedback-mensagem';
+            feedback.className = `feedback-mensagem ${tipo === 'success' ? 'feedback-success' : 'feedback-error'}`;
+            feedback.textContent = mensagem;
+            
+            document.body.appendChild(feedback);
+            
+            setTimeout(() => {
+                feedback.style.opacity = '0';
+                setTimeout(() => feedback.remove(), 300);
+            }, 3000);
+        }
+        
+        function adicionarReserva(e) {
+            e.preventDefault();
+            
+            const nome = document.getElementById('nome-reserva').value;
+            const pessoas = parseInt(document.getElementById('pessoas-reserva').value);
+            const espaco = document.getElementById('espaco-reserva').value;
+            const mesa = document.getElementById('mesa-reserva').value ? parseInt(document.getElementById('mesa-reserva').value) : null;
+            const observacoesReserva = document.getElementById('observacoes-reserva').value;
+            
+            if (!mesa) {
+                alert('Por favor, informe o número da mesa!');
+                return;
+            }
+            
+            const mesaExiste = mesas[espaco].some(m => m.numero === mesa);
+            if (!mesaExiste) {
+                alert(`Mesa ${mesa} não existe no ${espaco === 'salao' ? 'Salão' : espaco === 'deck' ? 'Deck' : 'Área Kids'}!`);
+                return;
+            }
+            
+            const mesaJaReservada = reservas.find(r => r.mesa === mesa && r.espaco === espaco);
+            if (mesaJaReservada) {
+                alert(`Mesa ${mesa} já está reservada para ${mesaJaReservada.nome}!`);
+                return;
+            }
+            
+            reservas.push({
+                nome,
+                pessoas,
+                espaco,
+                mesa,
+                chegaram: 0,
+                observacoes: observacoesReserva
+            });
+            
+            atualizarStatusMesaPorReserva(espaco, mesa, 'reservada');
+            salvarReservasNoFirebase();
+            renderizarReservas();
+            document.getElementById('modal-reserva').style.display = 'none';
+            e.target.reset();
+            mostrarFeedback(`✅ Reserva de ${nome} adicionada para mesa ${mesa}`, 'success');
+        }
+
+        // ==================== FUNÇÕES ADICIONAIS ====================
+        function inicializarMesasManual() {
+            if (confirm('Isso vai criar TODAS as mesas. Continuar?')) {
+                const mesasIniciais = { salao: [], deck: [], kids: [] };
+                
+                for (let i = 1; i <= 59; i++) {
+                    let lugares = 4;
+                    if (i % 4 === 0) lugares = 6;
+                    if (i % 10 === 0) lugares = 8;
+                    
+                    mesasIniciais.salao.push({
+                        numero: i,
+                        lugares: lugares,
+                        status: 'livre',
+                        observacoes: ''
+                    });
+                }
+                
+                for (let i = 60; i <= 99; i++) {
+                    mesasIniciais.deck.push({
+                        numero: i,
+                        lugares: 0,
+                        status: 'inativa',
+                        observacoes: ''
+                    });
+                }
+                
+                for (let i = 100; i <= 135; i++) {
+                    mesasIniciais.kids.push({
+                        numero: i,
+                        lugares: 0,
+                        status: 'inativa',
+                        observacoes: ''
+                    });
+                }
+                
+                database.ref('mesas').set(mesasIniciais)
+                    .then(() => {
+                        alert('✅ Mesas criadas!');
+                        mesas = mesasIniciais;
+                        renderizarMesas();
+                    })
+                    .catch(error => alert('Erro: ' + error.message));
+            }
+        }
+        
+        function limparReservas() {
+            if (confirm('Limpar TODAS as reservas?')) {
+                reservas.forEach(reserva => {
+                    if (reserva.mesa) {
+                        atualizarStatusMesaPorReserva(reserva.espaco, reserva.mesa, 'livre');
+                    }
+                });
+                
+                reservas = [];
+                salvarReservasNoFirebase();
+                renderizarReservas();
+            }
+        }
+        
+
+        function exportarDados() {
+            let csvContent = "Sistema de Controle de Mesas - Relatório\n";
+            csvContent += `Data da exportação: ${new Date().toLocaleDateString()}\n\n`;
+    
+            // ========== MESAS ==========
+            csvContent += "MESAS\n";
+            csvContent += "Espaço;Número;Status;Lugares;Observações\n";
+    
+            Object.keys(mesas).forEach(espaco => {
+                mesas[espaco].forEach(mesa => {
+                    csvContent += `${traduzirEspaco(espaco)};${mesa.numero};${mesa.status};${mesa.lugares};"${mesa.observacoes || ''}"\n`;
+                });
+            });
+    
+            // ========== RESERVAS ==========
+            csvContent += "\nRESERVAS\n";
+            csvContent += "Nome;Pessoas;Espaço;Mesa;Chegaram;Faltam;Status;Observações\n";
+    
+            if (reservas && reservas.length > 0) {
+                reservas.forEach(reserva => {
+                    const faltam = Math.max(0, reserva.pessoas - reserva.chegaram);
+                    let statusReserva = 'Pendente';
+                    if (reserva.chegaram > 0) {
+                        statusReserva = reserva.chegaram >= reserva.pessoas ? 'Completa' : 'Parcial';
+                    }
+                    csvContent += `"${reserva.nome}";${reserva.pessoas};${traduzirEspaco(reserva.espaco)};${reserva.mesa || '-'};${reserva.chegaram};${faltam};${statusReserva};"${reserva.observacoes || ''}"\n`;
+                });
+             } else {
+                csvContent += "Nenhuma reserva cadastrada\n";
+            }
+    
+    // ========== OBSERVAÇÕES ==========
+            csvContent += "\nOBSERVAÇÕES GERAIS\n";
+            csvContent += "Espaço;Observações\n";
+            csvContent += `Salão;"${observacoes.salao || ''}"\n`;
+            csvContent += `Deck;"${observacoes.deck || ''}"\n`;
+            csvContent += `Área Kids;"${observacoes.kids || ''}"\n`;
+    
+            // Cria o arquivo e faz download
+            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+    
+            const a = document.createElement('a');
+            a.href = url;
+            const dataAtual = new Date().toISOString().split('T')[0];
+            a.download = `relatorio-mesas-${dataAtual}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+    
+            ('📊 Relatório exportado em Excel!', 'success');
+        }
+        
+        function traduzirEspaco(espaco) {
+            const espacos = {
+                'salao': 'Salão',
+                'deck': 'Deck',
+                'kids': 'Área Kids'
+            };
+            return espacos[espaco] || espaco;
+        }
+    </script>
+</body>
+</html>
